@@ -45,7 +45,7 @@ export default function ReactorWrapper() {
   const ref = useRef(null)
 
   const handleOpen = () => {
-    setOpen(true)
+    // setOpen(true)
   }
 
   const handleClickOutside = (event) => {
