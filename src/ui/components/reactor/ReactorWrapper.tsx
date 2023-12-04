@@ -1,24 +1,15 @@
 "use client"
 
-import React, { useRef, useState } from "react"
+import React, { useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverPortal,
-  PopoverContent,
-} from "@/ui/ds/Popover"
 import Reactor from "@/ui/components/reactor/Reactor"
-import ReactorAvatar from "@/ui/components/reactor/ReactorAvatar"
-
-import { useOnClickOutside } from "usehooks-ts"
 
 type Comment = {
-  userName: string
   avatarUrl: string
-  text: string
   date: string
+  text: string
+  userName: string
 }
 
 type Position = {
@@ -27,41 +18,72 @@ type Position = {
 }
 
 type Reactor = {
-  position: Position
   comments: Comment[]
-  emojis: {
-    [key: string]: string
-  }
+  id: string
+  path: Path2D
+  position: Position
 }
 
 type Reactors = {
   [key: string]: Reactor
 }
 
-export default function ReactorWrapper() {
+const ReactorWrapper = React.forwardRef((props, ref) => {
   const [reactors, setReactors] = useState<Reactors>({})
+  const [reactor, setReactor] = useState(false)
   const [isOpen, setOpen] = useState(false)
 
-  const ref = useRef(null)
+  const handleClickInside = (event: MouseEvent) => {
+    if (isOpen) {
+      setOpen(false)
+      return
+    }
+    const ctx = ref?.current.getContext("2d")
 
-  const handleOpen = () => {
-    // setOpen(true)
-  }
+    if (ctx) {
+      const x = event.pageX - 20
+      const y = event.pageY - 20
+      const width = 40
+      const height = 40
+      const path = new Path2D()
+      path.rect(x, y, width, height)
 
-  const handleClickOutside = (event) => {
-    if (!isOpen) {
-      setReactors((prevReactors) => ({
-        ...prevReactors,
-        [uuidv4()]: {
-          position: { x: event.x, y: event.y },
+      const reactor = Object.values(reactors).find((reactor) =>
+        ctx.isPointInPath(reactor.path, event.pageX, event.pageY)
+      )
+
+      if (reactor) {
+        setOpen(true)
+        setReactor(reactor)
+      } else {
+        const reactorId = uuidv4()
+        const newReactor = {
+          id: reactorId,
+          path,
+          x,
+          y,
           comments: [],
-          emojis: {},
-        },
-      }))
+        }
+
+        setReactors((prevReactors) => ({
+          ...prevReactors,
+          [reactorId]: newReactor,
+        }))
+
+        requestAnimationFrame(() => {
+          const img = new Image(40, 40) // Create new img element
+
+          img.src = "https://ui-avatars.com/api/?rounded=true"
+          img.onload = () => {
+            ctx.drawImage(img, x, y, 40, 40)
+          }
+
+          setReactor(newReactor)
+          setOpen(true)
+        })
+      }
     }
   }
-
-  useOnClickOutside(ref, handleClickOutside)
 
   const addComment = (reactorId: string) => (comment: Comment) => {
     setReactors((prevReactors) => ({
@@ -71,32 +93,35 @@ export default function ReactorWrapper() {
         comments: [...prevReactors[reactorId].comments, comment],
       },
     }))
+
+    setReactor((prevReactor) => ({
+      ...prevReactor,
+      comments: [...prevReactor.comments, comment],
+    }))
   }
 
   return (
-    <div ref={ref} className="pt-5 overflow-x-auto shadow-md">
-      <div className="w-fit text-sm text-gray-400">
-        {Object.entries(reactors).map(([reactorId, reactor]) => (
-          <Popover key={reactorId}>
-            <PopoverTrigger className="w-full text-left" onClick={handleOpen}>
-              <ReactorAvatar position={reactor.position} />
-            </PopoverTrigger>
-            <PopoverPortal>
-              <PopoverContent
-                style={{
-                  top: reactor.position.y - 60,
-                  left: reactor.position.x - 60,
-                }}
-              >
-                <Reactor
-                  comments={reactor.comments}
-                  leaveComment={addComment(reactorId)}
-                />
-              </PopoverContent>
-            </PopoverPortal>
-          </Popover>
-        ))}
+    <div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 text-slate-700 text-center text-3xl">
+        <h1>Welcome to this wonderful experiment!</h1>
+        <h2>Click anywhere to add your comments</h2>
       </div>
+      <canvas ref={ref} onClick={handleClickInside}></canvas>
+      {isOpen && (
+        <div
+          className="absolute"
+          style={{ top: reactor.y + 20, left: reactor.x + 20 }}
+        >
+          <Reactor
+            comments={reactor.comments}
+            leaveComment={addComment(reactor.id)}
+          />
+        </div>
+      )}
     </div>
   )
-}
+})
+
+ReactorWrapper.displayName = "ReactorWrapper"
+
+export default ReactorWrapper
